@@ -1,4 +1,7 @@
-
+# 加载数据集（MATH500、GSM等）
+# 使用指定的模型生成答案
+# 对生成的答案进行后处理（比如提取最终答案、修剪多余部分）
+# 保存预测结果并评估
 import argparse
 import os
 import re
@@ -17,7 +20,7 @@ from functools import partial
 import sys
 import os
 import gc
-
+# 禁止分词器的并行化
 from get_math_results import main as eval_main
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -25,12 +28,24 @@ exact_match = evaluate.load("exact_match")
 
 
 def logit_adjustment(token_ids, logits, adjust_ids, values, max_len=-1):
+    """
+    对给定的 logits 进行调整。
+    Args:
+        token_ids (torch.Tensor): 输入的 token IDs。
+        logits (torch.Tensor): 输入的 logits。
+        adjust_ids (torch.Tensor): 需要调整的 token IDs。
+        values (float): 调整的值。
+        max_len (int, optional): 最大长度。默认为 -1。
+    Returns:
+        torch.Tensor: 调整后的 logits。
+
+    """
     if max_len <= 0 or len(token_ids) <= max_len:
         logits[adjust_ids.to(logits.device)] += values
     return logits
 
 
-
+# 保留前缀，即去掉开头的指令、问题和注释
 def trim_output(output):
     instruction_prefix = "Answer the following question"
     question_prefix = 'Question:'
@@ -42,7 +57,7 @@ def trim_output(output):
 
     return output
 
-
+# 从模型生成的字符串中提取最终答案
 def extract_box(pred_str):
     ans = pred_str.split("boxed")[-1]
     if len(ans) == 0:
@@ -66,6 +81,7 @@ def extract_box(pred_str):
 
     return a
 
+# 提取最后一个数字
 def extract_last_number(pred_str):
     o = re.sub(r"(\d),(\d)", r"\1\2", pred_str)
     numbers = re.findall(r"[-+]?\d*\.\d+|\d+", o)
@@ -76,14 +92,12 @@ def extract_last_number(pred_str):
     return ans
 
 
-
-
-
 def main(args):
     random.seed(42)
 
     print("Loading data...")
     test_data = []
+    # 加载数据集
     if args.dataset == "MATH500":
         data = load_dataset("HuggingFaceH4/MATH-500", split="test")
         for example in data:
@@ -102,7 +116,7 @@ def main(args):
                 test_data.append({
                     "question": example["problem"],
                     "answer": example["solution"],
-                    "gt":gt,
+                    "gt":gt, # 标准答案
                 })
     elif args.dataset in ["GSM", "GSM_train"]:
         if args.dataset == "GSM_train":
@@ -127,21 +141,23 @@ def main(args):
     if not os.path.exists(args.save_dir):
         os.makedirs(args.save_dir)
 
+    # 加载分词器tokenizer
     tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_name_or_path if args.tokenizer_name_or_path else args.model_name_or_path)
 
-     # set padding side to left for batch generation
+    # set padding side to left for batch generation
     tokenizer.padding_side = "left"
 
     # set pad token to eos token if pad token is not set
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
         tokenizer.pad_token_id = tokenizer.eos_token_id
-
+    # 构建提示（Prompt）
     prefix="Answer the following questions. You should think step-by-step and put your final answer within \\boxed{}.\n"
     prompts = []
     for i, example in enumerate(test_data):
         prompt =  prefix+"Question: " + example["question"].strip()+"\nAnswer: "
-        if args.use_chat_format:
+        if args.use_chat_format: # 对话格式处理
+            # 如果模型是gemma或者deepseek，则使用chat_template
             if "gemma" in args.model_name_or_path or "deepseek" in args.model_name_or_path:
                 messages = [{"role": "user", "content": prefix + "Question: " + example["question"].strip()}]
             else:
@@ -153,10 +169,23 @@ def main(args):
     with open(os.path.join(args.save_dir, "example_prompt.txt"), 'w') as fout:
         fout.write(prompts[0])
 
-    model = LLM(model=args.model_name_or_path, tokenizer=args.tokenizer_name_or_path if args.tokenizer_name_or_path else args.model_name_or_path, swap_space=16, gpu_memory_utilization=0.98, enable_lora=args.peft is not None, tensor_parallel_size=torch.cuda.device_count(), max_lora_rank=128, max_model_len=args.max_tokens+2000)
-
+    # 加载模型
+    model = LLM(
+        model=args.model_name_or_path,
+        tokenizer=(
+            args.tokenizer_name_or_path
+            if args.tokenizer_name_or_path
+            else args.model_name_or_path
+        ),
+        swap_space=8,
+        gpu_memory_utilization=0.8,
+        enable_lora=args.peft is not None,
+        tensor_parallel_size=torch.cuda.device_count(),
+        max_lora_rank=64,
+        max_model_len=args.max_tokens + 500,
+    )
+    # 设置生成参数
     if not args.logit_adjustment:
-
         sampling_params = SamplingParams(n=1,
                                         temperature=0,
                                         max_tokens=args.max_tokens)
@@ -169,18 +198,18 @@ def main(args):
                                         max_tokens=args.max_tokens,
                                         logits_processors=[logit_adjustment_process]
                                         )
+    # 生成答案                                    
     if args.peft is not None:
         outputs = model.generate(prompts=prompts, sampling_params=sampling_params, lora_request=LoRARequest("lora_path", 1, lora_path=args.peft))
     else:
         outputs = model.generate(prompts=prompts, sampling_params=sampling_params)
-
+    # 处理输出
     result = []
     for output in outputs:
         attempts = []
         for ith_output in output.outputs:
             attempts.append(ith_output.text)
         result.append(attempts)
-    
 
     outputs = [[trim_output(o) for o in output] for output in result]
 
@@ -195,7 +224,6 @@ def main(args):
     with open(os.path.join(args.save_dir, "predictions.jsonl"), "w") as fout:
         for prediction in predictions:
             fout.write(json.dumps(prediction) + "\n")
-    
 
 
 if __name__ == "__main__":
@@ -282,8 +310,3 @@ if __name__ == "__main__":
 
     main(args)
     eval_main(os.path.join(args.save_dir, "predictions.jsonl"), save=True, k=None, output_dir=args.save_dir)
-    
-
-
-
-        
