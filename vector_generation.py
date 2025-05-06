@@ -2,14 +2,25 @@ import torch
 import os
 import argparse
 
+
 def load_data(data_dir, prefixs, layer_num=29, max_examples=None):
+    """
+    从指定目录加载数据，并将数据分为 check, switch, other 三个类别
+    Args:
+        data_dir (str): 数据存放的目录路径。
+        prefixs (list[str]): 前缀列表，用于构建数据路径。
+        layer_num (int, optional): 层数，默认为29。
+        max_examples (int, optional): 最多加载的样本数，如果为None则加载全部样本。
+    Returns:
+        tuple: 包含check, switch, other (torch.Tensor)
+    """
     data_paths = [os.path.join(data_dir, f"hidden_{p}", "hidden.pt") for p in prefixs]
     switch = [[] for _ in range(layer_num)]
     check = [[] for _ in range(layer_num)]
     other = [[] for _ in range(layer_num)]
     for i, data_path in enumerate(data_paths):
         data = torch.load(data_path, weights_only=False)
-
+        # 遍历每一层、每个样本，提取：所有 step 的隐藏状态 反思/转换 的位置索引
         for l in range(layer_num):
             layer_data = data[l]
             for k in layer_data:

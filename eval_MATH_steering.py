@@ -7,20 +7,17 @@ import torch
 import evaluate
 from transformers import  AutoTokenizer
 from modeling_utils.modeling_qwen2 import Qwen2ForCausalLM
-from vllm import LLM, SamplingParams
-from vllm.lora.request import LoRARequest
-from collections import Counter
-from datasets import load_dataset
-from peft import PeftModel, PeftConfig
 
-import sys
+from datasets import load_dataset
+
+
 import os
-import gc
 from tqdm import trange
 
 from get_math_results import main as eval_main
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
-
+os.environ["http_proxy"] = "127.0.0.1:7890"
+os.environ["https_proxy"] = "127.0.0.1:7890"
 exact_match = evaluate.load("exact_match")
 
 

@@ -5,13 +5,13 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from tqdm import tqdm
 import argparse
 
-# 从两个数据文件中提取正确和错误的推理样本
+# 从 原始数据文件/评估结果文件 中提取出 正确/错误 的回答样本
 def generate_math_data(data_dir, data_path):
     correct, incorrect = [], []
-    with open(data_path) as f: # train.jsonl
+    with open(data_path) as f: # 原始数据文件train.jsonl
         data = f.readlines()
         data = [json.loads(line) for line in data]
-    with open(f"{data_dir}/math_eval.jsonl") as f: # math_eval.jsonl
+    with open(f"{data_dir}/math_eval.jsonl") as f: # 评估结果文件math_eval.jsonl
         eval = f.readlines()
         eval = [json.loads(line) for line in eval]
     # 将 data 截取至与 eval 相同长度，确保两者对齐
@@ -76,6 +76,7 @@ def generate_index(text, tokenizer, split_id, think_only=True):
             switch_index.append(i)
     return step_index, check_index, switch_index
 
+# 加载模型，对每个样本进行推理，提取各层隐藏状态并保存
 def generate(model_path, data, save_dir):
     think_only = "deepseek" in model_path.lower()
     model = AutoModelForCausalLM.from_pretrained(model_path, device_map="auto")
@@ -115,7 +116,7 @@ def generate(model_path, data, save_dir):
             hidden_dict[i][k] = {"step":step_h, "check_index": check_index, "switch_index": switch_index}
         del hidden_states
     os.makedirs(save_dir, exist_ok=True)
-    torch.save(hidden_dict, f"{save_dir}/hidden.pt")
+    torch.save(hidden_dict, f"{save_dir}/hidden.pt") # 将包含隐藏状态的hidden_dict保存为.pt
     json.dump(prompts, open(f"{save_dir}/prompts.json", "w"))
 
 
@@ -147,3 +148,38 @@ if __name__ == "__main__":
             save_dir = f"{save_dir}_{args.start}_-1"
     print(save_dir)
     generate(args.model_path, data, save_dir)
+
+# generate_math_data() → 提取正确/错误回答
+#       ↓
+# generate() → 加载模型和数据
+#       ↓
+# 逐条处理 prompt + response
+#       ↓
+# 调用 generate_index() 解析推理步骤边界
+#       ↓
+# 获取各层隐藏状态
+#       ↓
+# 将每一步的隐藏状态和反思索引保存进 hidden_dict
+#       ↓
+# 保存为 hidden.pt 和 prompts.json
+
+# hidden_dict = [
+#     layer_0: {             # 输入嵌入层
+#         sample_0: {        # k是样本编号，v是该样本在该层的推理信息
+#             "step": tensor([5, 4096]),     # 5 个推理步骤，每个 4096 维
+#             "check_index": [1, 3],         # 第 1 和第 3 步是反思
+#             "switch_index": [2]            # 第 2 步是换种思路
+#         },
+#         sample_1: {...},
+#         ...
+#     },
+#     layer_1: {              # 第一层 Transformer
+#         sample_0: {
+#             "step": tensor([5, 4096]),
+#             "check_index": [1, 3],
+#             "switch_index": [2]
+#         },
+#         ...
+#     },
+#     ...
+# ]

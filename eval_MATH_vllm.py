@@ -17,13 +17,13 @@ from datasets import load_dataset
 from functools import partial
 
 
-import sys
 import os
 import gc
 # 禁止分词器的并行化
 from get_math_results import main as eval_main
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
-
+os.environ["http_proxy"] = "127.0.0.1:7890"
+os.environ["https_proxy"] = "127.0.0.1:7890"
 exact_match = evaluate.load("exact_match")
 
 

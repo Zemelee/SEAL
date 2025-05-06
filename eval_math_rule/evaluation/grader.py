@@ -69,7 +69,7 @@ def str_to_pmatrix(input_str):
 
     return ", ".join(pmatrix_list)
 
-
+# 判断两个数学表达式是否“等价”
 def math_equal(
     prediction: Union[bool, float, str],
     reference: Union[float, str],
@@ -78,9 +78,7 @@ def math_equal(
     timeout: bool = False,
 ) -> bool:
     """
-    Exact match of math if and only if:
-    1. numerical equal: both can convert to float and are equal
-    2. symbolic equal: both can convert to sympy expression and are equal
+    0.5=50%, \boxed{-1}=-1, [1,2]=(1,2), 1.0001=1.0, x+y=y+x...
     """
     # print("Judge:", prediction, reference)
     if prediction is None or reference is None:

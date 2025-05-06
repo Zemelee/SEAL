@@ -1,3 +1,4 @@
+# 评估数学推理任务中模型 model_generation 与标准答案（ground truth）是否一致
 import os
 import json
 from tqdm import tqdm, trange
@@ -9,28 +10,28 @@ import multiprocessing
 import queue
 
 def math_equal_with_timeout(pred, gt_ans, timeout):
+    # 在子进程中执行 math_equal 函数，并将结果放入队列中
     def target(result_queue):
         try:
             result_queue.put(math_equal(pred, gt_ans))
         except Exception as e:
             result_queue.put(e)
-
-
+    # 创建消息队列，用于存储结果 子进程存/主进程取
     result_queue = multiprocessing.Queue()
+    # 创建子进程用于运行target，result_queue作为参数传入
     process = multiprocessing.Process(target=target, args=(result_queue,))
     process.start()
-
-    process.join(timeout)
+    process.join(timeout) # 主进程等待子进程完成
 
     if process.is_alive():
         print(f"Timeout occurred for prediction: {pred}")
-        process.terminate()
-        process.join()    
+        process.terminate() # 终止子进程
+        process.join() # 等待子进程完全结束
         return False
 
    
     try:
-        result = result_queue.get_nowait()
+        result = result_queue.get_nowait() # 非阻塞地从队列里获取结果
     except queue.Empty:
         print("Result queue timed out")
         return False
@@ -42,8 +43,8 @@ def math_equal_with_timeout(pred, gt_ans, timeout):
     return result
 
 
-
 def parallel_math_equal(all_pred, gt_ans, timeout=20):
+    # 本质仍然是串行执行
     results = []
     for pred in all_pred:
         results.append(math_equal_with_timeout(pred, gt_ans, timeout))
@@ -59,10 +60,12 @@ def main(res_path, save=False, k=None, output_dir=None):
     
     for example in tqdm(data):
         # gt_cot, gt = parse_ground_truth(example, data_name="omni-math")
+        # 3. 兼容性处理：如果没有 model_generation 字段，就用 model_output
         if "model_generation" not in example:
             example["model_generation"] = example["model_output"]
-        if k is not None:
+        if k is not None: # 只取前 k 个预测结果
             example["model_generation"] = example["model_generation"][:k]
+        
         gt_cot = example["answer"]
         gt_ans = extract_answer(gt_cot, data_name="omni-math")
         gt_cot = str(gt_cot).strip()
