@@ -134,7 +134,7 @@ def main(args):
         model = Qwen2ForCausalLM.from_pretrained(args.model_name_or_path, device_map="auto")
     else:
         raise ValueError("Model not supported")
-    
+    # 加载 steering vector，并在模型生成时将其注入到指定层
     if args.steering:
         steer_vec = torch.load(args.steering_vector, weights_only=True)
         steer_vec = steer_vec.to(model.device)
@@ -244,7 +244,6 @@ if __name__ == "__main__":
 
 
     args = parser.parse_args()
-
     if args.steering:
         vector_name_split = args.steering_vector.split("/")[-3:]
         vector_name_split[-1] = vector_name_split[-1].split(".")[0]
@@ -263,6 +262,7 @@ if __name__ == "__main__":
         
     print(args.save_dir)
     main(args)
+    # 从模型生成的答案中提取出最终答案，并与标准答案比较，计算准确率、EM（Exact Match）等指标
     eval_main(os.path.join(args.save_dir, "predictions.jsonl"), save=True, k=None, output_dir=args.save_dir)
 
 

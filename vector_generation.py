@@ -19,16 +19,16 @@ def load_data(data_dir, prefixs, layer_num=29, max_examples=None):
     check = [[] for _ in range(layer_num)]
     other = [[] for _ in range(layer_num)]
     for i, data_path in enumerate(data_paths):
-        data = torch.load(data_path, weights_only=False)
+        data = torch.load(data_path, weights_only=False) # 数组
         # 遍历每一层、每个样本，提取：所有 step 的隐藏状态 反思/转换 的位置索引
         for l in range(layer_num):
-            layer_data = data[l]
-            for k in layer_data:
+            layer_data = data[l] # 某一层的所有样本 {sample_id: {}...}
+            for k in layer_data: # 数字
                 if max_examples is not None and max_examples > 0 and k >= max_examples:
                     continue
-                h = layer_data[k]["step"]
-                check_index = layer_data[k]["check_index"]
-                switch_index = layer_data[k]["switch_index"]
+                h = layer_data[k]["step"] # torch.Size([28, 1536]) # 28个step
+                check_index = layer_data[k]["check_index"] # tensor([19, 24]) shape(2)
+                switch_index = layer_data[k]["switch_index"] # tensor([25]) shape(1)
                 check[l].append(h[check_index])
                 switch[l].append(h[switch_index])
                 all_indices = torch.arange(h.shape[0])
@@ -41,9 +41,10 @@ def load_data(data_dir, prefixs, layer_num=29, max_examples=None):
     check = torch.stack(check, dim=0)
     switch = torch.stack(switch, dim=0)
     other = torch.stack(other, dim=0)
+    # torch.Size: ([21, 212, 1536]), ([21, 66, 1536]), ([21, 1239, 1536])
     return check, switch, other
 
-
+# 根据 load_data 生成向量并保存为pt
 def generate_vector_switch_check(data_dir, prefixs, layers, save_prefix, overwrite=False):
     if isinstance(layers, int):
         layers = [layers]
@@ -81,3 +82,9 @@ if __name__ == "__main__":
         save_prefix=args.save_prefix,
         overwrite=args.overwrite
     )
+    # generate_vector_switch_check(
+    #     data_dir="results/MATH_train/DeepSeek-R1-Distill-Qwen-1.5B/baseline_10000",
+    #     prefixs=["correct_0_500", "incorrect_0_500"],
+    #     layers=20,
+    #     save_prefix="500_500",
+    # )

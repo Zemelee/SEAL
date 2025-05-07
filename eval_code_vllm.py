@@ -1,24 +1,19 @@
 import argparse
 import os
-import re
 import json
 import random
 import torch
-import evaluate
-from transformers import AutoModelForCausalLM, AutoTokenizer, OPTForCausalLM, GPTNeoXForCausalLM
+from transformers import AutoTokenizer
 from vllm import LLM, SamplingParams
 from vllm.lora.request import LoRARequest
-from collections import Counter
-from datasets import load_dataset
 from functools import partial
 
-
-import sys
 import os
-import gc
 from code_evaluation import codegen_metrics, load_code_generation_dataset, get_deepseekcode_question_template_answer, extract_code, extract_instance_results
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
+os.environ["http_proxy"] = "127.0.0.1:7890"
+os.environ["https_proxy"] = "127.0.0.1:7890"
 
 
 

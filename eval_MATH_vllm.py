@@ -101,22 +101,20 @@ def main(args):
     if args.dataset == "MATH500":
         data = load_dataset("HuggingFaceH4/MATH-500", split="test")
         for example in data:
-            gt = extract_box(example["solution"])
             test_data.append({
                 "question": example["problem"],
                 "answer": example["solution"],
-                "gt":gt,
+                "gt":extract_box(example["solution"]),
             })
     elif args.dataset == "MATH_train":
         data_path = "data/MATH/train.jsonl"
         with open(data_path) as fin:
             for line in fin:
                 example = json.loads(line)
-                gt = extract_box(example["solution"])
                 test_data.append({
                     "question": example["problem"],
                     "answer": example["solution"],
-                    "gt":gt, # 标准答案
+                    "gt":extract_box(example["solution"]), # 标准答案
                 })
     elif args.dataset in ["GSM", "GSM_train"]:
         if args.dataset == "GSM_train":
@@ -308,5 +306,6 @@ if __name__ == "__main__":
             name += f"_first{args.logit_adjustment_max_len}"
         args.save_dir = os.path.join(args.save_dir, "logit-adjustment", name)
 
-    main(args)
+    main(args) # 加载数据集和模型，生成答案，并保存为predictions.jsonl
+    # 读取predictions, 给出评估结果
     eval_main(os.path.join(args.save_dir, "predictions.jsonl"), save=True, k=None, output_dir=args.save_dir)

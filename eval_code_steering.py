@@ -1,26 +1,18 @@
 import argparse
 import os
-import re
 import json
 import random
 import torch
-import evaluate
-from transformers import AutoModelForCausalLM, AutoTokenizer, OPTForCausalLM, GPTNeoXForCausalLM
+from transformers import AutoTokenizer
 from modeling_utils.modeling_qwen2 import Qwen2ForCausalLM
-from vllm import LLM, SamplingParams
-from vllm.lora.request import LoRARequest
-from collections import Counter
-from datasets import load_dataset
-from peft import PeftModel, PeftConfig
 from tqdm import trange
 
-import sys
 import os
-import gc
 from code_evaluation import codegen_metrics, load_code_generation_dataset, get_deepseekcode_question_template_answer, extract_code, extract_instance_results
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
-
+os.environ["http_proxy"] = "127.0.0.1:7890"
+os.environ["https_proxy"] = "127.0.0.1:7890"
 
 
 def main(args):
@@ -66,7 +58,7 @@ def main(args):
         model = Qwen2ForCausalLM.from_pretrained(args.model_name_or_path, device_map="auto")
     else:
         raise ValueError("Model not supported")
-    
+    # 加载 steering vector(pt文件)，并在模型生成时将其注入到第 20 层
     if args.steering:
         steer_vec = torch.load(args.steering_vector, weights_only=True)
         steer_vec = steer_vec.to(model.device)

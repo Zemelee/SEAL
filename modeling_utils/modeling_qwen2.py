@@ -1101,15 +1101,15 @@ class Qwen2ForCausalLM(Qwen2PreTrainedModel, GenerationMixin):
         self.new_round=False
         self.cur_steps = 0
 
-        self.steering_flag = False
-        self.steering_vector = None
-        self.steering_layer = None
-        self.steering_coef = 0.0
-        self.steering_think_flag=None
+        self.steering_flag = False            # 是否启用 steering
+        self.steering_vector = None           # steering 向量
+        self.steering_layer = None            # 注入向量的层数
+        self.steering_coef = 0.0              # 引导系数
+        self.steering_think_flag = None       # 控制是否处于“思考”阶段
 
-        self.steering_split_ids = None
-        self.steering_think_start_id=None
-        self.steering_think_end_id=None
+        self.steering_split_ids = None        # 段落分割 token
+        self.steering_think_start_id = None   # 思考开始 token（如 "</think>"）
+        self.steering_think_end_id = None     # 思考结束 token
 
 
         # Initialize weights and apply final processing
