@@ -165,6 +165,7 @@ def main(args):
     if args.steering:
         steer_vec = torch.load(args.steering_vector, weights_only=True)
         steer_vec = steer_vec.to(model.device)
+        # 将相关参数传递到模型内部，重写了 forword 函数
         model.set_steering_flag(
             steering_flag=True,
             steering_layer=args.steering_layer,

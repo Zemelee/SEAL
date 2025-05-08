@@ -34,7 +34,7 @@ def generate_math_data(data_dir, data_path):
 
 
 
-# 分析文本中的推理步骤，识别 反思/转换 行为
+# 分析文本(token)中的推理步骤，识别 反思/转换 行为
 def generate_index(text, tokenizer, split_id, think_only=True):
     # text输入文本 split_id分隔符的令牌ID
     check_words=["verify", "make sure", "hold on", "think again", "'s correct", "'s incorrect", "Let me check", "seems right"]
@@ -74,6 +74,7 @@ def generate_index(text, tokenizer, split_id, think_only=True):
                 check_index.append(i)
         elif any([step.lower().startswith(p.lower()) for p in switch_prefix]) or any([w.lower() in step.lower() for w in swicth_words]):
             switch_index.append(i)
+    # step_index: 每个推理块起始位置的 token 下标
     return step_index, check_index, switch_index
 
 # 加载模型，对每个样本进行推理，提取各层隐藏状态并保存
@@ -118,9 +119,10 @@ def generate(model_path, data, save_dir):
         check_index = torch.LongTensor(check_index)
         switch_index = torch.LongTensor(switch_index)
         for i in range(layer_num):
-            h = hidden_states[i][0] # 取出第 i 层的隐藏状态张量的第一个序列
-            step_h = h[step_index] # 用 step_index 选择某些特定 token 的表示
-            # i 层号 k 样本编号
+            h = hidden_states[i][0] # 第i层的隐藏状态
+            # hidden_states[i]: [batch_size: 1个样本, seq_len: 输入序列token量, token_dim]
+            # h.shape = (seq_len, token_dim) 每一行对应一个 token 的向量, h[0]第一个 token 的隐藏状态
+            step_h = h[step_index]  # 高级索引，提取每个推理块起始位置对应的隐藏状态向量
             hidden_dict[i][k] = {"step":step_h, "check_index": check_index, "switch_index": switch_index}
         del hidden_states
         # hidden_dict[i][k] = {
