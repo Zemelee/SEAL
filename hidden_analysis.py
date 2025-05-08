@@ -104,7 +104,9 @@ def generate(model_path, data, save_dir):
         # }
         tokenized_batch = {k: v.to(model.device) for k, v in tokenized_batch.items()} # 将输入数据移动到模型所在的设备上
         with torch.no_grad(): # 不计算梯度
+            # 获取模型在处理完整提示时，每一层的 hidden_states
             output = model(**tokenized_batch, output_hidden_states=True) # 前向传播=model(input_ids=..., attention_mask=...)
+            print(output)
             # hidden_states 是模型在每一层对输入 token 的向量表示
             # shape:( batch_size:处理问题量(1),  sequence_length:某问题有多少个token,  hidden_size:每个token的向量长度 )
             hidden_states = output.hidden_states # 让模型返回所有层的隐藏状态

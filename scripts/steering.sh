@@ -12,7 +12,7 @@ CUDA_VISIBLE_DEVICES=$gpu python eval_MATH_steering.py \
     --steering_layer 20 \
     --steering_coef -1.0 \
     --start 0 \
-    --max_examples 50
+    --max_examples 50 
 
 
 CUDA_VISIBLE_DEVICES=$gpu python eval_code_steering.py \
