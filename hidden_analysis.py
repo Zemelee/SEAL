@@ -42,7 +42,7 @@ def generate_index(text, tokenizer, split_id, think_only=True):
     swicth_words = ["think differenly", "another way", "another approach", "another method", "another solution", "another strategy", "another technique"]
     switch_prefix = ["Alternatively"]
     
-    tokens = tokenizer.encode(text)
+    tokens = tokenizer.encode(text) # 将文本转换为 token ID
     # 是否只处理 cot 之间的内容
     if think_only:
         think_begin_id = tokenizer.encode("<think>", add_special_tokens=False)[0]
@@ -67,17 +67,19 @@ def generate_index(text, tokenizer, split_id, think_only=True):
     switch_index = [] # 存储 转换 的步骤索引 [2]第3步是转换
     # 遍历由 index 划分的段落
     for i in range(len(index)-1):
-        step_index.append(index[i]+start)
+        step_index.append(index[i]+start) # 保存每个思考块在原始 token 序列中的起始位置
         step = think_tokens[index[i]+1:index[i+1]]
         step = tokenizer.decode(step).strip(" ").strip("\n")
+        # 判断是否为 反思: 以某个特定前缀开头/包含某些关键词
         if any([step.lower().startswith(p.lower()) for p in check_prefix]) or any([w.lower() in step.lower() for w in check_words]):
                 check_index.append(i)
+        # 判断是否为 转换
         elif any([step.lower().startswith(p.lower()) for p in switch_prefix]) or any([w.lower() in step.lower() for w in swicth_words]):
             switch_index.append(i)
     # step_index: 每个推理块起始位置的 token 下标
     return step_index, check_index, switch_index
 
-# 加载模型，对每个样本进行推理，提取各层隐藏状态并保存
+# 加载模型，对每个样本进行'向前传播'，提取各层隐藏状态并保存
 def generate(model_path, data, save_dir):
     think_only = "deepseek" in model_path.lower()
     model = AutoModelForCausalLM.from_pretrained(model_path, device_map="auto")

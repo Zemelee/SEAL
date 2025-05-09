@@ -48,7 +48,6 @@ def load_data(data_dir, prefixs, layer_num=29, max_examples=None):
     check = torch.stack(check, dim=0)
     switch = torch.stack(switch, dim=0)
     other = torch.stack(other, dim=0)
-    # torch.Size: ([21, 212, 1536]), ([21, 66, 1536]), ([21, 1239, 1536])
     return check, switch, other
 
 
@@ -61,11 +60,12 @@ def generate_vector_switch_check(
     max_layer = max(layers)
     check, switch, other = load_data(
         data_dir=data_dir, prefixs=prefixs, layer_num=max_layer + 1
-    )
+    ) #shape =  [Layer_Num, Num_Thoughts_In_Layer, Hidden_Dim]
     save_dir = os.path.join(data_dir, f"vector_{save_prefix}")
     print(f"save_dir: {save_dir}")
     os.makedirs(save_dir, exist_ok=True)
-    for layer in layers:
+    #  从各层的隐藏状态中提取一个 steering_vector
+    for layer in layers: # 只针对第20层
         layer_check = check[layer]
         layer_switch = switch[layer]
         layer_other = other[layer]

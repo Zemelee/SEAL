@@ -880,11 +880,14 @@ class Qwen2Model(Qwen2PreTrainedModel):
         all_hidden_states = () if output_hidden_states else None
         all_self_attns = () if output_attentions else None
         next_decoder_cache = None
-
+        # 遍历所有 Transformer 层
         for l, decoder_layer in enumerate(self.layers):
-            if steering_flag is not None and steering_layer == l:
+            # 是否在当前层进行干预
+            if steering_flag is not None and steering_layer == l: # 当前处理的是第l层 Transformer Layer
+                # 将转向向量移动到正确设备和精度
                 steering_vector = steering_vector.to(hidden_states.dtype).to(hidden_states.device)
                 steering_flag = steering_flag.to(hidden_states.device)
+                # 执行干预：修改隐藏状态 H_new = H_old + α * S
                 hidden_states[steering_flag, -1] += steering_coef * steering_vector
 
             if output_hidden_states:
@@ -1091,6 +1094,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
         return causal_mask
 
 
+# 主干网络选择的是 Qwen2Model
 class Qwen2ForCausalLM(Qwen2PreTrainedModel, GenerationMixin):
     _tied_weights_keys = ["lm_head.weight"]
 
