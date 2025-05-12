@@ -3,21 +3,14 @@ import os
 import argparse
 
 
+# 从隐藏状态数据中生成推理引导向量
+
 def load_data(data_dir, prefixs, layer_num=29, max_examples=None):
-    """
-    从指定目录加载数据，并将数据分为 check, switch, other 三个类别
-    Args:
-        data_dir (str): 数据存放的目录路径。
-        prefixs (list[str]): 前缀列表，用于构建数据路径。
-        layer_num (int, optional): 层数，默认为29。
-        max_examples (int, optional): 最多加载的样本数，如果为None则加载全部样本。
-    Returns:
-        tuple: 包含check, switch, other (torch.Tensor)
-    """
     data_paths = [os.path.join(data_dir, f"hidden_{p}", "hidden.pt") for p in prefixs]
     switch = [[] for _ in range(layer_num)] # 列表，元素对应模型的层，存储该层中某类推理块的隐藏状态
     check = [[] for _ in range(layer_num)]
     other = [[] for _ in range(layer_num)]
+    # prefixs = ["correct", "incorrect"]
     for i, data_path in enumerate(data_paths):
         data = torch.load(data_path, weights_only=False)  # 数组: 每个元素dict，代表某一层的所有样本
         # 遍历每一层、每个样本，提取：所有 step 的隐藏状态 反思/转换 的位置索引
@@ -58,11 +51,11 @@ def generate_vector_switch_check(
     if isinstance(layers, int):
         layers = [layers]
     max_layer = max(layers)
+    # 分别包含所有层的反思/转换/执行的隐藏状态
     check, switch, other = load_data(
         data_dir=data_dir, prefixs=prefixs, layer_num=max_layer + 1
     ) #shape =  [Layer_Num, Num_Thoughts_In_Layer, Hidden_Dim]
     save_dir = os.path.join(data_dir, f"vector_{save_prefix}")
-    print(f"save_dir: {save_dir}")
     os.makedirs(save_dir, exist_ok=True)
     #  从各层的隐藏状态中提取一个 steering_vector
     for layer in layers: # 只针对第20层

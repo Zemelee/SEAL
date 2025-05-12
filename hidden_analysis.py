@@ -5,6 +5,8 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from tqdm import tqdm
 import argparse
 
+### 本文件用于生成每个样本的每一层的隐藏状态 正确和错误各一次
+
 # 从 原始数据文件/评估结果文件 中提取出 正确/错误 的回答样本
 def generate_math_data(data_dir, data_path):
     correct, incorrect = [], []
@@ -76,7 +78,10 @@ def generate_index(text, tokenizer, split_id, think_only=True):
         # 判断是否为 转换
         elif any([step.lower().startswith(p.lower()) for p in switch_prefix]) or any([w.lower() in step.lower() for w in swicth_words]):
             switch_index.append(i)
-    # step_index: 每个推理块起始位置的 token 下标
+    # [149, 220, ..., 1569](48), [28, 30], [29, 31, 42]
+    # step_index文本被划分为48个推理步骤.每个数字表示推理步骤的第一个 token在整!个!token 序列中的索引
+    # [28, 30]表示step_index[28]和step_index[30]是反思步骤 (可能以 "Wait" 开头)
+    # [29, 31, 42]:step_index[29]和step_index[31]是转换步骤 (可能以 "Alternatively" 开头)
     return step_index, check_index, switch_index
 
 # 加载模型，对每个样本进行'向前传播'，提取各层隐藏状态并保存
@@ -91,10 +96,9 @@ def generate(model_path, data, save_dir):
         tokenizer.pad_token_id = tokenizer.eos_token_id
     # 获取分词器的词汇表 vocab，提取包含 ĊĊ（表示\n\n）的令牌ID，存入 split_id
     vocab = tokenizer.get_vocab()
+    layer_num = model.config.num_hidden_layers+1 # 获取模型隐藏层数量(包含嵌入层)
     split_id = [vocab[token] for token in vocab.keys() if "ĊĊ" in token] # [ĊĊ 及其变体对应的token_id]
     prompts = [d["prompt"]+d["response"] for d in data]
-
-    layer_num = model.config.num_hidden_layers+1 # 获取模型隐藏层数量(包含嵌入层)
     hidden_dict=[{} for _ in range(layer_num)] # 存储每层的隐藏状态数据
     # 遍历每个提示，生成对应的隐藏状态
     for k, p in tqdm(enumerate(prompts), total=len(prompts)):
@@ -109,7 +113,6 @@ def generate(model_path, data, save_dir):
         with torch.no_grad(): # 不计算梯度
             # 获取模型在处理完整提示时，每一层的 hidden_states
             output = model(**tokenized_batch, output_hidden_states=True) # 前向传播=model(input_ids=..., attention_mask=...)
-            print(output)
             # hidden_states 是模型在每一层对输入 token 的向量表示
             # shape:( batch_size:处理问题量(1),  sequence_length:某问题有多少个token,  hidden_size:每个token的向量长度 )
             hidden_states = output.hidden_states # 让模型返回所有层的隐藏状态
@@ -120,6 +123,7 @@ def generate(model_path, data, save_dir):
         step_index = torch.LongTensor(step_index)
         check_index = torch.LongTensor(check_index)
         switch_index = torch.LongTensor(switch_index)
+        # 每一层的隐藏状态长度不变 每层的隐藏状态是一个张量 (1, seq_len, token维度)
         for i in range(layer_num):
             h = hidden_states[i][0] # 第i层的隐藏状态
             # hidden_states[i]: [batch_size: 1个样本, seq_len: 输入序列token量, token_dim]
